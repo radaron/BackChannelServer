@@ -1,100 +1,214 @@
+import asyncio
+from collections import deque
 import random
-import select
-import socket
+from typing import AsyncGenerator
+import uuid
 from datetime import datetime
-from app.core.database import get_db
+from app.core.database import open_db_session
 from app.core.config import settings
 from app.models.order import Order
 
 
-# pylint: disable=no-member
-def get_random_open_port(port_start=int(settings.port_range_start), port_end=int(settings.port_range_end), local_address=settings.local_address):
+async def get_random_open_port(
+    port_start=int(settings.port_range_start),
+    port_end=int(settings.port_range_end),
+    local_address=settings.local_address,
+):
     while True:
         port = random.randint(port_start, port_end)
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            if s.connect_ex((local_address, port)) != 0:
-                return port
+        try:
+            server = await asyncio.start_server(lambda r, w: None, local_address, port)
+            server.close()
+            await server.wait_closed()
+            return port
+        except OSError:
+            continue
+
+
+class ForwarderManager:
+    def __init__(self):
+        self._jobs = {}
+
+    async def create_job(self, client_name, connection_timeout=120):
+        response_queue = deque()
+        forwarder = Forwarder(client_name, response_queue, connection_timeout)
+        job_id = str(uuid.uuid4().hex)
+        self._jobs[job_id] = {"forwarder": forwarder, "response_queue": response_queue, "is_running": True}
+        return job_id, forwarder.start
+
+    async def get_job_updates(self, job_id: str) -> AsyncGenerator[str, None]:
+        job = self._jobs.get(job_id)
+        if job:
+            while job["is_running"]:
+                if job["response_queue"]:
+                    message = f"{job['response_queue'].popleft()}\n\n"
+                    # print(f"Job {job_id} response: {message}")
+                    yield message
+                else:
+                    await asyncio.sleep(0.1)
+
+    def is_job_running(self, job_id: str) -> bool:
+        job = self._jobs.get(job_id)
+        return job["is_running"] if job else False
+
+    def get_job(self, job_id: str):
+        return self._jobs.get(job_id)
 
 
 class Forwarder:
-
-    def __init__(self, client_username, client_name, logger, connection_timeout=120):
-        self._client_username = client_username
+    def __init__(self, client_name: str, response_queue: deque, connection_timeout: int = 120):
         self._client_name = client_name
-        self._logger = logger
+        self._response_queue = response_queue
         self._connection_timeout = connection_timeout
+        self._connection_future = None
 
-    @staticmethod
-    def _log(msg):
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        print(f"[{timestamp}] {msg}")
+    def _log(self, msg):
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        self._response_queue.append(f"[{timestamp}] {msg}")
 
-    def _create_socket(self):
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.bind((settings.local_address, get_random_open_port()))  # pylint: disable=no-member
-        sock.settimeout(self._connection_timeout)
-        sock.listen(1)
-        return sock
+    async def _log_custom_messages(self, port):
+        username = await self.get_client_username()
+        for message in settings.custom_messages:
+            self._log(message.format(username=username, port=port))
 
-    def _log_custom_messages(self, port):
-        for message in settings.custom_messages:  # pylint: disable=no-member
-            self._log(message.format(username=self._client_username, port=port))
+    async def _connection_handler(self, reader, writer):
+        if self._connection_future and not self._connection_future.done():
+            self._connection_future.set_result((reader, writer))
 
-    def start(self):
+    async def _create_server(self, port=None):
+        if port is None:
+            port = await get_random_open_port()
+
+        server = await asyncio.start_server(self._connection_handler, settings.local_address, port)
+        return server, port
+
+    async def _wait_for_connection(self):
+        """Wait for a connection without accessing protected members"""
+        self._connection_future = asyncio.Future()
+
         try:
-            source_socket = self._create_socket()
-            target_socket = self._create_socket()
-            self._handle_connection(source_socket.getsockname()[1])
-            self._log(
-                f'waiting for connection from {self._client_name}'
-                f' port: {source_socket.getsockname()[1]}'
-            )
-            source_conn, source_addr = source_socket.accept()
-            self._log(f"{self._client_name} connected from: {source_addr}")
-            self._log(f'waiting for connection from user port: {target_socket.getsockname()[1]}')
-            self._log_custom_messages(target_socket.getsockname()[1])
-            target_conn, target_addr = target_socket.accept()
-            self._log(f"user connected from: {target_addr}")
-            while True:
-                rlist, _, _ = select.select([source_conn, target_conn], [], [])
-                if source_conn in rlist:
-                    data = source_conn.recv(4096)
-                    self._log(f"received {len(data)} bytes data")
-                    if len(data) == 0:
-                        break
-                    target_conn.sendall(data)
-                if target_conn in rlist:
-                    data = target_conn.recv(4096)
-                    self._log(f"sent {len(data)} bytes data")
-                    if len(data) == 0:
-                        break
-                    source_conn.sendall(data)
-        except socket.timeout:
-            self._log("Connection timeout")
-        except Exception as e:  # pylint: disable=broad-except
-            self._log(str(e))
+            return await self._connection_future
         finally:
-            source_socket.close()
-            target_socket.close()
+            self._connection_future = None
+
+    async def relay(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter, direction: str):
+        try:
+            while True:
+                data = await reader.read(4096)
+                if not data:
+                    self._log(f"{direction}: connection closed")
+                    break
+                self._log(f"{direction}: {len(data)} bytes")
+                writer.write(data)
+                await writer.drain()
+        except Exception as e:
+            self._log(f"{direction} relay error: {e}")
+        finally:
+            try:
+                writer.write_eof()
+            except (AttributeError, OSError):
+                pass
+            writer.close()
+            await writer.wait_closed()
+
+    async def handle_connection(
+        self,
+        source_reader: asyncio.StreamReader,
+        source_writer: asyncio.StreamWriter,
+        target_reader: asyncio.StreamReader,
+        target_writer: asyncio.StreamWriter,
+    ):
+        try:
+            source_to_target = asyncio.create_task(self.relay(source_reader, target_writer, "source->target"))
+            target_to_source = asyncio.create_task(self.relay(target_reader, source_writer, "target->source"))
+
+            await asyncio.wait([source_to_target, target_to_source], return_when=asyncio.FIRST_COMPLETED)
+
+        finally:
+            source_to_target.cancel()
+            target_to_source.cancel()
+
+            for writer in [source_writer, target_writer]:
+                writer.close()
+                await writer.wait_closed()
+
+    async def start(self, job: dict):
+        source_server = None
+        target_server = None
+
+        while True:
+            self._log(f"waiting for connection from {self._client_name}")
+            await asyncio.sleep(1)
+
+        try:
+            source_server, source_port = await self._create_server()
+            target_server, target_port = await self._create_server()
+
+            await self._handle_connection(source_port)
+            print(f"Source server listening on port {source_port}")
+            self._log(f"waiting for connection from {self._client_name} port: {source_port}")
+
+            source_reader, source_writer = await asyncio.wait_for(
+                self._wait_for_connection(), timeout=self._connection_timeout
+            )
+
+            self._log(f"{self._client_name} connected.")
+            self._log(f"waiting for connection from client port: {target_port}")
+            await self._log_custom_messages(target_port)
+
+            target_reader, target_writer = await asyncio.wait_for(
+                self._wait_for_connection(), timeout=self._connection_timeout
+            )
+
+            target_addr = target_writer.get_extra_info("peername")
+            self._log(f"client connected from: {target_addr}")
+
+            await self.handle_connection(source_reader, source_writer, target_reader, target_writer)
+
+        except asyncio.TimeoutError:
+            self._log("Connection timeout")
+        except Exception as e:
+            self._log(f"Error: {e}")
+        finally:
+            if source_server:
+                source_server.close()
+                await source_server.wait_closed()
+            if target_server:
+                target_server.close()
+                await target_server.wait_closed()
+
             self._log("Connection closed")
-            self._handle_disconnection()
-            self._log('disconnect')
+            await self._handle_disconnection()
+            self._log("disconnect")
+            job["is_running"] = False
 
-    def _handle_connection(self, port):
-        self._logger.info("Prepare client %s connection to port %s", self._client_name, port)
-        db_session = get_db()
-        if record := db_session.get(Order, self._client_name):
-            record.name = self._client_name
-            record.port = int(port)
-            db_session.commit()
-            self._logger.info("Updated port %s for client %s", port, self._client_name)
-        db_session.close()
+    async def get_client_username(self):
+        db_session = await open_db_session()
+        try:
+            if record := await db_session.get(Order, self._client_name):
+                return record.username if record and record.username else '<unknown>'
+            return '<unknown>'
+        finally:
+            await db_session.close()
 
-    def _handle_disconnection(self):
-        self._logger.info("Deleting record for client %s", self._client_name)
-        db_session = get_db()
-        if record := db_session.get(Order, self._client_name):
-            db_session.delete(record)
-            db_session.commit()
-            self._logger.info("Deleted record for client %s", self._client_name)
-        db_session.close()
+    async def _handle_connection(self, port):
+        db_session = await open_db_session()
+        try:
+            if record := await db_session.get(Order, self._client_name):
+                record.name = self._client_name
+                record.port = int(port)
+                await db_session.commit()
+        finally:
+            await db_session.close()
+
+    async def _handle_disconnection(self):
+        db_session = await open_db_session()
+        try:
+            if record := await db_session.get(Order, self._client_name):
+                await db_session.delete(record)
+                await db_session.commit()
+        finally:
+            await db_session.close()
+
+
+forwarder_manager = ForwarderManager()

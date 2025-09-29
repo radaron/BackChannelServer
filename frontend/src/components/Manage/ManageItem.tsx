@@ -1,8 +1,10 @@
 import {
+  Button,
   Card,
   CardContent,
   Typography,
 } from '@mui/material';
+import { useState } from 'react';
 
 const ManageItem: React.FC<{
   title: string;
@@ -10,6 +12,105 @@ const ManageItem: React.FC<{
   icon: React.ReactElement;
   onClick: () => void;
 }> = ({ title, description, icon, onClick }) => {
+  const [isConnected, setIsConnected] = useState(false);
+  const [taskId, setTaskId] = useState<string | null>(null);
+
+  const handleConnection = async () => {
+    try {
+      const res = await fetch('/api/v1/manage/connect', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'test_client' }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        console.log('Connection Data:', data);
+
+        // Assuming the response contains a jobId
+        if (data.jobId) {
+          setTaskId(data.jobId);
+          startSSEConnection(data.jobId);
+        }
+      } else {
+        console.error('Failed to establish connection');
+      }
+    } catch (error) {
+      console.error('Connection error:', error);
+    }
+  };
+
+  const startSSEConnection = (taskId: string) => {
+    if (isConnected) {
+      console.log('SSE connection already active');
+      return;
+    }
+
+    console.log(`Starting SSE connection for task: ${taskId}`);
+
+    const eventSource = new EventSource(`/api/v1/manage/forwarder/${taskId}`, {
+      withCredentials: true
+    });
+
+    eventSource.onopen = () => {
+      console.log('SSE connection opened');
+      setIsConnected(true);
+    };
+
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        console.log('SSE Message received:', data);
+
+        // Handle different message types if needed
+        if (data.type === 'log') {
+          console.log(`[${data.timestamp}] ${data.message}`);
+        } else if (data.type === 'status') {
+          console.log(`Status: ${data.status}`);
+        } else {
+          console.log('Raw SSE data:', event.data);
+        }
+      } catch (error) {
+        // If it's not JSON, just log the raw data
+        console.log('SSE Raw message:', event.data);
+      }
+    };
+
+    eventSource.onerror = (error) => {
+      console.error('SSE connection error:', error);
+      setIsConnected(false);
+
+      // Optionally reconnect after a delay
+      setTimeout(() => {
+        if (taskId) {
+          console.log('Attempting to reconnect SSE...');
+          startSSEConnection(taskId);
+        }
+      }, 5000);
+    };
+
+    // Cleanup function to close connection
+    const cleanup = () => {
+      eventSource.close();
+      setIsConnected(false);
+      console.log('SSE connection closed');
+    };
+
+    // Store cleanup function for later use
+    (window as any).closeSSE = cleanup;
+
+    // Auto-cleanup on page unload
+    window.addEventListener('beforeunload', cleanup);
+  };
+
+  const handleDisconnect = () => {
+    if ((window as any).closeSSE) {
+      (window as any).closeSSE();
+      setTaskId(null);
+    }
+  };
+
   return (
     <Card
       sx={{
@@ -32,8 +133,29 @@ const ManageItem: React.FC<{
           {title}
         </Typography>
         <Typography variant="body2" color="text.secondary">
-          {description}
+          <Button
+            variant="outlined"
+            onClick={handleConnection}
+            disabled={isConnected}
+          >
+            {isConnected ? 'Connected' : description}
+          </Button>
+          {isConnected && (
+            <Button
+              variant="outlined"
+              onClick={handleDisconnect}
+              sx={{ ml: 1 }}
+              color="error"
+            >
+              Disconnect
+            </Button>
+          )}
         </Typography>
+        {taskId && (
+          <Typography variant="caption" display="block" sx={{ mt: 1 }}>
+            Task ID: {taskId}
+          </Typography>
+        )}
       </CardContent>
     </Card>
   );

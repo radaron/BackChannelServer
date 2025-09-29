@@ -17,6 +17,10 @@ class Settings(BaseSettings):
 
     allowed_origins: Optional[str] = "*"
 
+    port_range_start: int = 20000
+    port_range_end: int = 30000
+    local_address: str = "127.0.0.1"
+
     model_config = ConfigDict(env_file=".env")
 
 

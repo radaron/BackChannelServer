@@ -20,3 +20,11 @@ class ManageDeleteData(BaseSchema):
 
 class ManageDeleteDataResponse(BaseSchema):
     message: str
+
+
+class ManageConnectData(BaseSchema):
+    name: str
+
+
+class ManageConnectResponse(BaseSchema):
+    job_id: str

@@ -40,3 +40,6 @@ async def init_db(retries: int = 5, delay: int = 5):
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
     async with AsyncSessionLocal() as session:
         yield session
+
+async def open_db_session() -> AsyncSession:
+    return AsyncSessionLocal()
