@@ -166,25 +166,25 @@ class Forwarder:
             source_server, source_port = await self._create_server()
             target_server, target_port = await self._create_server()
 
-            await self._handle_connection(source_port)
+            await self._handle_connection(target_port)
             self._log(
-                f"waiting for connection from {self._client_name} port: {source_port}"
+                f"waiting for connection from {self._client_name} port: {target_port}"
             )
-
-            source_reader, source_writer = await asyncio.wait_for(
-                self._wait_for_connection(), timeout=self._connection_timeout
-            )
-
-            self._log(f"{self._client_name} connected.")
-            self._log(f"waiting for connection from client port: {target_port}")
-            await self._log_custom_messages(target_port)
 
             target_reader, target_writer = await asyncio.wait_for(
                 self._wait_for_connection(), timeout=self._connection_timeout
             )
 
-            target_addr = target_writer.get_extra_info("peername")
-            self._log(f"client connected from: {target_addr}")
+            self._log(f"{self._client_name} connected.")
+            self._log(f"waiting for connection from client port: {source_port}")
+            await self._log_custom_messages(source_port)
+
+            source_reader, source_writer = await asyncio.wait_for(
+                self._wait_for_connection(), timeout=self._connection_timeout
+            )
+
+            source_addr = source_writer.get_extra_info("peername")
+            self._log(f"client connected from: {source_addr}")
 
             await self.handle_connection(
                 source_reader, source_writer, target_reader, target_writer

@@ -12,11 +12,7 @@ import {
 } from '@mui/material';
 import { Lock } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
-
-interface LoginResponse {
-  message: string;
-  authenticated: boolean;
-}
+import { authService, ApiError } from '../services';
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
@@ -38,23 +34,7 @@ const Login: React.FC = () => {
     setSuccess('');
 
     try {
-      const response = await fetch('/api/v1/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include', // Include cookies for authentication
-        body: JSON.stringify({ password }),
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          throw new Error('Incorrect password');
-        }
-        throw new Error(`Login failed: ${response.statusText}`);
-      }
-
-      const data: LoginResponse = await response.json();
+      const data = await authService.login(password);
       setSuccess(data.message);
       setPassword(''); // Clear the password field on success
 
@@ -67,7 +47,15 @@ const Login: React.FC = () => {
       }, 1000);
 
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      if (err instanceof ApiError) {
+        if (err.status === 401) {
+          setError('Incorrect password');
+        } else {
+          setError(err.message);
+        }
+      } else {
+        setError(err instanceof Error ? err.message : 'An error occurred');
+      }
     } finally {
       setLoading(false);
     }

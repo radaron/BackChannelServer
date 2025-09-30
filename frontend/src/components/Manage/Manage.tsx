@@ -1,138 +1,227 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Typography,
   Container,
   Button,
+  Snackbar,
+  Alert,
+  CircularProgress,
+  AppBar,
+  Toolbar,
+  Chip,
+  Avatar,
 } from '@mui/material';
-import { Dashboard, ExitToApp } from '@mui/icons-material';
+import { ExitToApp, Dashboard } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
-import ManageItem from './ManageItem.tsx';
+import ClientCard from './ClientCard/ClientCard.tsx';
+import { authService, manageService, ApiError } from '../../services';
+import type { ClientData } from '../../services/manageService';
+import logo from '../../../android-chrome-192x192.png';
 
 const Manage: React.FC = () => {
   const navigate = useNavigate();
+  const [clients, setClients] = useState<ClientData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [snackbar, setSnackbar] = useState<{
+    open: boolean;
+    message: string;
+    severity: 'success' | 'error' | 'info' | 'warning';
+  }>({
+    open: false,
+    message: '',
+    severity: 'info',
+  });
+
+  const showSnackbar = (message: string, severity: 'success' | 'error' | 'info' | 'warning' = 'info') => {
+    setSnackbar({ open: true, message, severity });
+  };
+
+  const handleCloseSnackbar = () => {
+    setSnackbar({ ...snackbar, open: false });
+  };
 
   const handleLogout = async () => {
     try {
-      const response = await fetch('/api/v1/auth/logout', {
-        method: 'POST',
-        credentials: 'include',
-      });
-
-      if (response.ok) {
-        navigate('/login');
-      } else {
-        console.error('Logout failed');
-      }
-    } catch (error) {
-      console.error('Logout error:', error);
-      // Navigate to login anyway on error
+      await authService.logout();
+      navigate('/login');
+    } catch {
+      showSnackbar('Logout error. Redirecting to login...', 'error');
       navigate('/login');
     }
   };
 
-  const handleGetData = async () => {
+  const fetchClients = useCallback(async () => {
     try {
-      const response = await fetch('/api/v1/manage/data', {
-        method: 'GET',
-        credentials: 'include',
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Manage Data:', data);
-      } else {
-        console.error('Failed to fetch manage data');
-      }
+      const data = await manageService.getClients();
+      setClients(data);
     } catch (error) {
-      console.error('Error fetching manage data:', error);
+      if (error instanceof ApiError) {
+        if (error.status === 401) {
+          navigate('/login');
+          return;
+        }
+        showSnackbar(`Failed to fetch clients: ${error.message}`, 'error');
+      } else {
+        showSnackbar('Error fetching clients', 'error');
+      }
+    } finally {
+      setLoading(false);
     }
-  }
+  }, [navigate]);
 
-  const handleDeleteData = async () => {
+  const handleDeleteClient = async (name: string) => {
     try {
-      const response = await fetch('/api/v1/manage/data', {
-        method: 'DELETE',
-        credentials: 'include',
-        body: JSON.stringify({ name: 'asd' }),
-        headers: { 'Content-Type': 'application/json' },
-      });
-
-      if (response.ok) {
-        console.log('Data deleted successfully');
-      } else {
-        console.error('Failed to delete data');
-      }
+      await manageService.deleteData(name);
+      showSnackbar(`Client '${name}' deleted successfully`, 'success');
+      // Refresh the client list
+      fetchClients();
     } catch (error) {
-      console.error('Error deleting data:', error);
+      if (error instanceof ApiError) {
+        showSnackbar(`Failed to delete client: ${error.message}`, 'error');
+      } else {
+        showSnackbar('Error deleting client', 'error');
+      }
     }
-  }
+  };
+
+  useEffect(() => {
+    fetchClients();
+
+    // Set up polling interval (every 5 seconds)
+    const intervalId = setInterval(() => {
+      fetchClients();
+    }, 5000);
+
+    // Cleanup interval on unmount
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [fetchClients]);
 
   return (
     <>
-      {/* Full-width header */}
-      <Box
+      {/* Modern AppBar Header */}
+      <AppBar
+        position="static"
+        elevation={0}
         sx={{
-          width: '100%',
-          backgroundColor: 'red',
-          py: 2,
-          mb: 4,
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
         }}
       >
-        <Container>
-          <Box
+        <Toolbar sx={{ py: { xs: 0.5, sm: 1 }, minHeight: { xs: '56px', sm: '64px' } }}>
+          <Avatar
+            src={logo}
+            alt="BackChannel Logo"
             sx={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              flexDirection: { xs: 'column', sm: 'row' },
-              gap: { xs: 2, sm: 0 },
+              bgcolor: 'rgba(255, 255, 255, 0.2)',
+              mr: { xs: 1, sm: 2 },
+              width: { xs: 36, sm: 48 },
+              height: { xs: 36, sm: 48 },
             }}
-          >
-            <Typography variant="h3" component="h1" gutterBottom>
+          />
+
+          <Box sx={{ flexGrow: 1 }}>
+            <Typography
+              variant="h4"
+              component="h1"
+              sx={{
+                fontWeight: 700,
+                color: 'white',
+                letterSpacing: '-0.5px',
+                fontSize: { xs: '1.25rem', sm: '1.75rem', md: '2.125rem' },
+              }}
+            >
               BackChannel
             </Typography>
+          </Box>
+
+          <Box sx={{ display: 'flex', gap: { xs: 0.5, sm: 1 }, alignItems: 'center' }}>
+            <Chip
+              icon={<Dashboard sx={{ color: 'white !important' }} />}
+              label={`${clients.length} Client${clients.length !== 1 ? 's' : ''}`}
+              sx={{
+                bgcolor: 'rgba(255, 255, 255, 0.2)',
+                color: 'white',
+                fontWeight: 600,
+                display: { xs: 'none', sm: 'flex' },
+                fontSize: { xs: '0.75rem', sm: '0.8125rem' },
+              }}
+            />
+
             <Button
-              variant="outlined"
-              startIcon={<ExitToApp />}
+              variant="contained"
+              startIcon={<ExitToApp sx={{ display: { xs: 'none', sm: 'block' } }} />}
               onClick={handleLogout}
-              sx={{ height: 'fit-content' }}
+              size="small"
+              sx={{
+                bgcolor: 'rgba(255, 255, 255, 0.9)',
+                color: 'primary.main',
+                fontWeight: 600,
+                fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                px: { xs: 1.5, sm: 2 },
+                '&:hover': {
+                  bgcolor: 'white',
+                },
+              }}
             >
               Logout
             </Button>
           </Box>
-        </Container>
-      </Box>
+        </Toolbar>
+      </AppBar>
 
-      <Container>
-
-        <Box
-          sx={{
-            display: 'grid',
-            gridTemplateColumns: {
-              xs: '1fr',
-              sm: 'repeat(2, 1fr)',
-              md: 'repeat(3, 1fr)',
-            },
-            gap: 3,
-            mb: 4,
-          }}
-        >
-          <ManageItem
-            title="System Overview"
-            description="Monitor system status and performance metrics"
-            icon={<Dashboard sx={{ fontSize: 48, color: 'primary.main', mb: 2 }} />}
-            onClick={() => handleGetData()}
-          />
-          <Button
-            variant="outlined"
-            color="error"
-            onClick={() => handleDeleteData()}
+      <Container sx={{ mt: { xs: 2, sm: 4 } }}>
+        {loading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
+            <CircularProgress size={60} />
+          </Box>
+        ) : clients.length === 0 ? (
+          <Box sx={{ textAlign: 'center', py: 8 }}>
+            <Typography variant="h6" color="text.secondary" gutterBottom>
+              No clients found
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Clients will appear here once they connect to the system.
+            </Typography>
+          </Box>
+        ) : (
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: {
+                xs: '1fr',
+                sm: 'repeat(2, 1fr)',
+                md: 'repeat(3, 1fr)',
+                lg: 'repeat(4, 1fr)',
+              },
+              gap: 3,
+              mb: 4,
+            }}
           >
-            Delete Data
-          </Button>
-        </Box>
+            {clients.map((client) => (
+              <ClientCard
+                key={client.name}
+                client={client}
+                onDelete={handleDeleteClient}
+                showSnackbar={showSnackbar}
+              />
+            ))}
+          </Box>
+        )}
       </Container>
+
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={handleCloseSnackbar}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: '100%' }}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </>
   );
 };

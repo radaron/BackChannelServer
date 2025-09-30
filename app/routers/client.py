@@ -31,7 +31,7 @@ async def get_protected_data(
     else:
         record = Order(name=name, polled_time=get_time(), username=username)
         db_session.add(record)
-        await db_session.commit()
+    await db_session.commit()
 
     return resp
 

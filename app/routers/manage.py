@@ -43,7 +43,7 @@ async def get_all_orders(
             resp_item.temperature = metric.temperature
         resp.data.append(resp_item)
 
-    return JSONResponse(resp.model_dump_snake_case())
+    return JSONResponse(resp.model_dump())
 
 
 @router.delete("/data", response_model=ManageDeleteDataResponse)
