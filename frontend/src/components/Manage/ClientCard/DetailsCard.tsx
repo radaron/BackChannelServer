@@ -15,11 +15,10 @@ interface DetailsCardProps {
   isFlipped: boolean;
   onDelete: (name: string) => void;
   handleConnection: () => void;
-  handleDisconnect: () => void;
   isConnected: boolean;
 }
 
-const DetailsCard: React.FC<DetailsCardProps> = ({ client, isFlipped, onDelete, handleConnection, handleDisconnect, isConnected }) => {
+const DetailsCard: React.FC<DetailsCardProps> = ({ client, isFlipped, onDelete, handleConnection, isConnected }) => {
 
   const isClientActive = () => {
     const now = Date.now() / 1000;

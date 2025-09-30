@@ -147,7 +147,6 @@ const ClientCard: React.FC<{
             isFlipped={showTerminal}
             onDelete={onDelete}
             handleConnection={handleConnection}
-            handleDisconnect={handleDisconnect}
             isConnected={isConnected}
           />
         </Box>
