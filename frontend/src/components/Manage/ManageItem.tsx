@@ -41,6 +41,27 @@ const ManageItem: React.FC<{
     }
   };
 
+  const handleStopJob = async () => {
+    if (!taskId) return;
+
+    try {
+      const res = await fetch(`/api/v1/manage/forwarder/${taskId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+
+      if (res.ok) {
+        console.log('Job stopped successfully');
+        setIsConnected(false);
+        setTaskId(null);
+      } else {
+        console.error('Failed to stop job');
+      }
+    } catch (error) {
+      console.error('Error stopping job:', error);
+    }
+  };
+
   const startSSEConnection = (taskId: string) => {
     if (isConnected) {
       console.log('SSE connection already active');
@@ -59,21 +80,12 @@ const ManageItem: React.FC<{
     };
 
     eventSource.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        console.log('SSE Message received:', data);
-
-        // Handle different message types if needed
-        if (data.type === 'log') {
-          console.log(`[${data.timestamp}] ${data.message}`);
-        } else if (data.type === 'status') {
-          console.log(`Status: ${data.status}`);
-        } else {
-          console.log('Raw SSE data:', event.data);
-        }
-      } catch (error) {
-        // If it's not JSON, just log the raw data
-        console.log('SSE Raw message:', event.data);
+      if (event.data === '[STREAM_END]') {
+        console.log('Stream ended by server');
+        eventSource.close();
+        setIsConnected(false);
+      } else {
+        console.log('SSE Message:', event.data);
       }
     };
 
@@ -81,7 +93,6 @@ const ManageItem: React.FC<{
       console.error('SSE connection error:', error);
       setIsConnected(false);
 
-      // Optionally reconnect after a delay
       setTimeout(() => {
         if (taskId) {
           console.log('Attempting to reconnect SSE...');
@@ -107,7 +118,7 @@ const ManageItem: React.FC<{
   const handleDisconnect = () => {
     if ((window as any).closeSSE) {
       (window as any).closeSSE();
-      setTaskId(null);
+      handleStopJob();
     }
   };
 

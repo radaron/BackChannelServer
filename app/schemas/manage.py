@@ -18,6 +18,7 @@ class ManageDataResponse(BaseSchema):
 class ManageDeleteData(BaseSchema):
     name: str
 
+
 class ManageDeleteDataResponse(BaseSchema):
     message: str
 

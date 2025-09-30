@@ -91,36 +91,7 @@ poetry run hash-master-password
 
 **Option 1b: Using Make commands**
 ```bash
-# Hash any password
-make hash-password PASSWORD=admin123
-
-# Hash the current master password from config
-make hash-master
-```
-
-**Option 2: Using the CLI script directly**
-```bash
-python hash_password.py admin123
-```
-
-**Option 3: Using the API endpoint (requires authentication)**
-```bash
-# First login to get authenticated
-curl -c cookies.txt -X POST "http://localhost:8000/api/v1/auth/login" \
-     -H "Content-Type: application/json" \
-     -d '{"password": "admin123"}'
-
-# Then hash a password
-curl -b cookies.txt -X POST "http://localhost:8000/api/v1/auth/hash-password" \
-     -H "Content-Type: application/json" \
-     -d '{"password": "mynewpassword"}'
-```
-
-**Option 4: Using Python directly**
-```python
-from app.core.security import hash_password
-hashed = hash_password("admin123")
-print(f"MASTER_PASSWORD_HASH={hashed}")
+make hash-password
 ```
 
 #### Using Hashed Passwords

@@ -19,7 +19,12 @@ class Settings(BaseSettings):
 
     port_range_start: int = 20000
     port_range_end: int = 30000
-    local_address: str = "127.0.0.1"
+    local_address: str = "0.0.0.0"
+
+    custom_messages: list = [
+        "Connect: ssh {username}@localhost -p {port}",
+        "Dynamic port forward: ssh -D 9999 {username}@localhost -p {port} -t top",
+    ]
 
     model_config = ConfigDict(env_file=".env")
 

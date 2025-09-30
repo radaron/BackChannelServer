@@ -1,10 +1,11 @@
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.routers import auth, client, manage
 from app.core.database import init_db
+from app.routers import auth, client, manage
 
 API_V1_PREFIX = "/api/v1"
 
@@ -26,7 +27,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.allowed_origins],  # Configure appropriately for production
+    allow_origins=[settings.allowed_origins],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

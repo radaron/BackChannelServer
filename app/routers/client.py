@@ -1,18 +1,20 @@
-from fastapi import APIRouter, Depends, Request, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.core.database import get_db_session
-from app.models.order import Order
-from app.models.metric import Metric
-from app.utils.time_utils import get_time
-from app.schemas.client import OrderResponse, MetricResponse, MetricData
 
+from app.core.database import get_db_session
+from app.models.metric import Metric
+from app.models.order import Order
+from app.schemas.client import MetricData, MetricResponse, OrderResponse
+from app.utils.time_utils import get_time
 
 router = APIRouter(prefix="/client", tags=["client"])
 
 
 @router.get("/order", response_model=OrderResponse)
-async def get_protected_data(request: Request, db_session: AsyncSession = Depends(get_db_session)) -> OrderResponse:
+async def get_protected_data(
+    request: Request, db_session: AsyncSession = Depends(get_db_session)
+) -> OrderResponse:
     name = request.headers.get("name")
     username = request.headers.get("username")
 
@@ -36,7 +38,9 @@ async def get_protected_data(request: Request, db_session: AsyncSession = Depend
 
 @router.put("/metric", response_model=MetricResponse)
 async def update_metric(
-    request: Request, metric_data: MetricData, db_session: AsyncSession = Depends(get_db_session)
+    request: Request,
+    metric_data: MetricData,
+    db_session: AsyncSession = Depends(get_db_session),
 ) -> MetricResponse:
     name = request.headers.get("name")
     order = await db_session.get(Order, name)
