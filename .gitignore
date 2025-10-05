@@ -167,3 +167,7 @@ cython_debug/
 # IDE
 .vscode/
 .idea/
+
+app/assets/*
+app/templates/*
+backchannel.env
