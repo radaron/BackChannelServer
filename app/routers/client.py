@@ -26,10 +26,10 @@ async def get_protected_data(
     if order := await db_session.get(Order, name):
         if order.port:
             resp.port = order.port
-        order.polled_time = get_time()
+        order.polled_time = int(get_time())
         order.username = username
     else:
-        record = Order(name=name, polled_time=get_time(), username=username)
+        record = Order(name=name, polled_time=int(get_time()), username=username)
         db_session.add(record)
     await db_session.commit()
 

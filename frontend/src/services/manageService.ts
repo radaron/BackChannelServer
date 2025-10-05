@@ -66,10 +66,10 @@ export const manageService = {
   },
 
   /**
-   * Connect to a client and get job ID for SSE
+   * Connect to a client and get forwarder ID for SSE
    */
-  async connect(name: string): Promise<{ jobId: string }> {
-    return api.post<{ jobId: string }, { name: string }>('/manage/connect', { name });
+  async connect(name: string): Promise<{ forwarderId: string }> {
+    return api.post<{ forwarderId: string }, { name: string }>('/manage/connect', { name });
   },
 
   /**

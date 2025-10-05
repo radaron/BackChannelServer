@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Response, status
+from fastapi.responses import JSONResponse
 
 from app.core.config import settings
 from app.core.security import authenticate_user, create_access_token
@@ -8,7 +9,7 @@ router = APIRouter(prefix="/auth", tags=["authentication"])
 
 
 @router.post("/login", response_model=LoginResponse)
-def login(login_data: LoginRequest, response: Response):
+def login(login_data: LoginRequest, response: Response) -> LoginResponse:
     """Login with master password using LoginManager"""
     user = authenticate_user(login_data.password)
     if not user:
@@ -34,7 +35,7 @@ def login(login_data: LoginRequest, response: Response):
 
 
 @router.post("/logout")
-def logout(response: Response):
+def logout(response: Response) -> JSONResponse:
     """Logout and clear cookie"""
     response.delete_cookie(key=settings.cookie_name, path="/")
-    return {"message": "Successfully logged out"}
+    return JSONResponse({"message": "Successfully logged out"})

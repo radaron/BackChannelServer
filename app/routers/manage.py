@@ -26,16 +26,19 @@ async def get_all_orders(
 ) -> JSONResponse:
     resp = ManageDataResponse()
 
-    orders = await db_session.execute(select(Order).order_by(Order.name))
-    orders = orders.scalars().all()
+    orders_result = await db_session.execute(select(Order).order_by(Order.name))
+    orders = orders_result.scalars().all()
     for order in orders:
         resp_item = ManageDataResponseItem(
-            name=order.name, polled_time=order.polled_time
+            name=order.name,
+            polled_time=float(order.polled_time)
+            if order.polled_time is not None
+            else 0.0,
         )
-        if metric := await db_session.execute(
+        metric_result = await db_session.execute(
             select(Metric).where(Metric.name == order.name)
-        ):
-            metric = metric.scalars().first()
+        )
+        if metric := metric_result.scalars().first():
             resp_item.uptime = metric.uptime
             resp_item.cpu_usage = metric.cpu_usage
             resp_item.memory_usage = metric.memory_usage
@@ -69,22 +72,24 @@ async def initiate_connection(
     background_tasks: BackgroundTasks,
     _: User = Depends(manager),
 ) -> ManageConnectResponse:
-    job_id, forwarder_start = await forwarder_manager.create_job(body.name)
-    background_tasks.add_task(forwarder_start, job_id, forwarder_manager.jobs)
-    return ManageConnectResponse(job_id=job_id)
+    forwarder_id, forwarder_start = await forwarder_manager.create_forwarder(body.name)
+    background_tasks.add_task(
+        forwarder_start, forwarder_id, forwarder_manager.forwarders
+    )
+    return ManageConnectResponse(forwarder_id=forwarder_id)
 
 
-@router.get("/forwarder/{job_id}")
-async def forward_job_status(
-    job_id: str, _: User = Depends(manager)
+@router.get("/forwarder/{forwarder_id}")
+async def forwarder_status(
+    forwarder_id: str, _: User = Depends(manager)
 ) -> StreamingResponse:
-    if not forwarder_manager.is_job_running(job_id):
+    if not forwarder_manager.is_forwarder_running(forwarder_id):
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Job not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Forwarder not found"
         )
 
     return StreamingResponse(
-        forwarder_manager.get_job_updates(job_id),
+        forwarder_manager.get_forwarder_responses(forwarder_id),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
@@ -94,10 +99,12 @@ async def forward_job_status(
     )
 
 
-@router.delete("/forwarder/{job_id}", response_model=ManageDeleteDataResponse)
+@router.delete("/forwarder/{forwarder_id}", response_model=ManageDeleteDataResponse)
 async def cancel_forward_job(
-    job_id: str, _: User = Depends(manager)
+    forwarder_id: str, _: User = Depends(manager)
 ) -> ManageDeleteDataResponse:
-    if forwarder_manager.cancel_job(job_id):
-        return ManageDeleteDataResponse(message="Job cancelled successfully")
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
+    if forwarder_manager.cancel_forwarder(forwarder_id):
+        return ManageDeleteDataResponse(message="Forwarder cancelled successfully")
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND, detail="Forwarder not found"
+    )

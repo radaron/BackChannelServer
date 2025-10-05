@@ -2,20 +2,22 @@ FROM python:3.12 AS builder
 
 RUN pip install poetry
 
-WORKDIR /app
+WORKDIR /service
 
 COPY pyproject.toml poetry.lock* ./
+COPY app /service/app/
 
 RUN poetry config virtualenvs.in-project true
 RUN poetry install --without dev
 
 FROM python:3.12-slim
 
-WORKDIR /app
+WORKDIR /service
 
-COPY --from=builder /app /app
+COPY --from=builder /service /service
 
 RUN adduser --disabled-password --gecos '' --no-create-home appuser
+RUN chown -R appuser:appuser app/db
 USER appuser
 
 EXPOSE 8000

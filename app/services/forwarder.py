@@ -3,7 +3,7 @@ import random
 import uuid
 from collections import deque
 from datetime import datetime
-from typing import AsyncGenerator
+from typing import Any, AsyncGenerator, Callable
 
 from app.core.config import settings
 from app.core.database import open_db_session
@@ -11,10 +11,10 @@ from app.models.order import Order
 
 
 async def get_random_open_port(
-    port_start=int(settings.port_range_start),
-    port_end=int(settings.port_range_end),
-    local_address=settings.local_address,
-):
+    port_start: int = int(settings.port_range_start),
+    port_end: int = int(settings.port_range_end),
+    local_address: str = settings.local_address,
+) -> int:
     while True:
         port = random.randint(port_start, port_end)
         try:
@@ -26,71 +26,35 @@ async def get_random_open_port(
             continue
 
 
-class ForwarderManager:
-    def __init__(self):
-        self._jobs = {}
-
-    async def create_job(self, client_name, connection_timeout=120):
-        response_queue = deque()
-        forwarder = Forwarder(client_name, response_queue, connection_timeout)
-        job_id = str(uuid.uuid4().hex)
-        self._jobs[job_id] = {"response_queue": response_queue}
-        return job_id, forwarder.start
-
-    async def get_job_updates(self, job_id: str) -> AsyncGenerator[str, None]:
-        job = self._jobs.get(job_id)
-        if job:
-            while job_id in self._jobs:
-                if job["response_queue"]:
-                    message = job["response_queue"].popleft()
-                    yield f"data: {message}\n\n"
-                else:
-                    await asyncio.sleep(0.1)
-            # Send a final message indicating the stream is closing
-            yield "data: [STREAM_END]\n\n"
-
-    def is_job_running(self, job_id: str) -> bool:
-        return job_id in self._jobs
-
-    def cancel_job(self, job_id: str) -> bool:
-        if job_id in self._jobs:
-            job = self._jobs[job_id]
-            job["response_queue"].append("Job cancelled by server")
-            del self._jobs[job_id]
-            return True
-        return False
-
-    def get_job(self, job_id: str):
-        return self._jobs.get(job_id)
-
-    @property
-    def jobs(self):
-        return self._jobs
-
-
 class Forwarder:
     def __init__(
-        self, client_name: str, response_queue: deque, connection_timeout: int
-    ):
+        self, client_name: str, response_queue: deque[str], connection_timeout: int
+    ) -> None:
         self._client_name = client_name
-        self._response_queue = response_queue
         self._connection_timeout = connection_timeout
-        self._connection_future = None
+        self._connection_future: asyncio.Future[
+            tuple[asyncio.StreamReader, asyncio.StreamWriter]
+        ] | None = None
+        self.response_queue = response_queue
 
-    def _log(self, msg):
+    def _log(self, msg: str) -> None:
         timestamp = datetime.now().strftime("%H:%M:%S")
-        self._response_queue.append(f"[{timestamp}] {msg}")
+        self.response_queue.append(f"[{timestamp}] {msg}")
 
-    async def _log_custom_messages(self, port):
+    async def _log_custom_messages(self, port: int) -> None:
         username = await self.get_client_username()
-        for message in settings.custom_messages:
+        for message in settings.get_custom_messages():
             self._log(message.format(username=username, port=port))
 
-    async def _connection_handler(self, reader, writer):
+    async def _connection_handler(
+        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+    ) -> None:
         if self._connection_future and not self._connection_future.done():
             self._connection_future.set_result((reader, writer))
 
-    async def _create_server(self, port=None):
+    async def _create_server(
+        self, port: int | None = None
+    ) -> tuple[asyncio.Server, int]:
         if port is None:
             port = await get_random_open_port()
 
@@ -99,7 +63,9 @@ class Forwarder:
         )
         return server, port
 
-    async def _wait_for_connection(self):
+    async def _wait_for_connection(
+        self,
+    ) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
         """Wait for a connection without accessing protected members"""
         self._connection_future = asyncio.Future()
 
@@ -110,7 +76,7 @@ class Forwarder:
 
     async def relay(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter, direction: str
-    ):
+    ) -> None:
         try:
             while True:
                 data = await reader.read(4096)
@@ -136,7 +102,7 @@ class Forwarder:
         source_writer: asyncio.StreamWriter,
         target_reader: asyncio.StreamReader,
         target_writer: asyncio.StreamWriter,
-    ):
+    ) -> None:
         try:
             source_to_target = asyncio.create_task(
                 self.relay(source_reader, target_writer, "source->target")
@@ -158,7 +124,7 @@ class Forwarder:
                 writer.close()
                 await writer.wait_closed()
 
-    async def start(self, job_id: int, jobs: dict):
+    async def start(self, job_id: str, jobs: dict) -> None:
         source_server = None
         target_server = None
 
@@ -208,7 +174,7 @@ class Forwarder:
             if job_id in jobs:
                 del jobs[job_id]
 
-    async def get_client_username(self):
+    async def get_client_username(self) -> str:
         db_session = await open_db_session()
         try:
             if record := await db_session.get(Order, self._client_name):
@@ -217,7 +183,7 @@ class Forwarder:
         finally:
             await db_session.close()
 
-    async def _handle_connection(self, port):
+    async def _handle_connection(self, port: int) -> None:
         db_session = await open_db_session()
         try:
             if record := await db_session.get(Order, self._client_name):
@@ -226,7 +192,7 @@ class Forwarder:
         finally:
             await db_session.close()
 
-    async def _handle_disconnection(self):
+    async def _handle_disconnection(self) -> None:
         db_session = await open_db_session()
         try:
             if record := await db_session.get(Order, self._client_name):
@@ -234,6 +200,52 @@ class Forwarder:
                 await db_session.commit()
         finally:
             await db_session.close()
+
+
+class ForwarderManager:
+    def __init__(self) -> None:
+        self._forwarders: dict[str, Forwarder] = {}
+
+    async def create_forwarder(
+        self, client_name: str, connection_timeout: int = 120
+    ) -> tuple[str, Callable]:
+        response_queue: deque[str] = deque()
+        forwarder = Forwarder(client_name, response_queue, connection_timeout)
+        forwarder_id = str(uuid.uuid4().hex)
+        self._forwarders[forwarder_id] = forwarder
+        return forwarder_id, forwarder.start
+
+    async def get_forwarder_responses(
+        self, forwarder_id: str
+    ) -> AsyncGenerator[str, None]:
+        forwarder = self._forwarders.get(forwarder_id)
+        if forwarder:
+            while forwarder_id in self._forwarders:
+                if forwarder.response_queue:
+                    message = forwarder.response_queue.popleft()
+                    yield f"data: {message}\n\n"
+                else:
+                    await asyncio.sleep(0.1)
+            # Send a final message indicating the stream is closing
+            yield "data: [STREAM_END]\n\n"
+
+    def is_forwarder_running(self, forwarder_id: str) -> bool:
+        return forwarder_id in self._forwarders
+
+    def cancel_forwarder(self, forwarder_id: str) -> bool:
+        if forwarder_id in self._forwarders:
+            forwarder = self._forwarders[forwarder_id]
+            forwarder.response_queue.append("Forwarder cancelled by server")
+            del self._forwarders[forwarder_id]
+            return True
+        return False
+
+    def get_forwarder(self, forwarder_id: str) -> Forwarder | None:
+        return self._forwarders.get(forwarder_id)
+
+    @property
+    def forwarders(self) -> dict[str, Forwarder]:
+        return self._forwarders
 
 
 forwarder_manager = ForwarderManager()

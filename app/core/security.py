@@ -1,9 +1,9 @@
+import base64
 from datetime import timedelta
 from typing import Optional
 
 from fastapi import HTTPException, status
 from fastapi_login import LoginManager
-from fastapi_login.exceptions import InvalidCredentialsException
 from passlib.context import CryptContext
 
 from app.core.config import settings
@@ -23,12 +23,13 @@ class User:
         self.username = username
         self.id = username
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"User(username='{self.username}')"
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    decoded_hash = base64.b64decode(hashed_password).decode()
+    return pwd_context.verify(plain_password, decoded_hash)
 
 
 @manager.user_loader()
@@ -56,16 +57,16 @@ def create_access_token(username: str) -> str:
     )
 
 
-def get_current_user_from_cookie(token: str = None):
+async def get_current_user_from_cookie(token: str | None = None) -> User:
     if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated"
         )
 
     try:
-        user = manager.get_current_user(token)
-        return user
-    except InvalidCredentialsException as exc:
+        username = await manager.get_current_user(token)
+        return User(username=username)
+    except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials"
         ) from exc

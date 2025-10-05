@@ -19,11 +19,11 @@ const ClientCard: React.FC<{
   const handleConnection = async () => {
     try {
       const data = await manageService.connect(client.name);
-      if (data.jobId) {
-        setTaskId(data.jobId);
+      if (data.forwarderId) {
+        setTaskId(data.forwarderId);
         setTerminalMessages(prev => [...prev, `Connecting to ${client.name}...`]);
         setShowTerminal(true);
-        startSSEConnection(data.jobId);
+        startSSEConnection(data.forwarderId);
       }
     } catch {
       showSnackbar('Connection error occurred', 'error');
@@ -40,9 +40,9 @@ const ClientCard: React.FC<{
     } catch (error) {
       console.log(error);
       if (error instanceof ApiError && error.status === 404) {
-        showSnackbar('Job not found or already stopped', 'info');
+        showSnackbar('Forwarder not found or already stopped', 'info');
       } else {
-        showSnackbar('Error stopping job', 'error');
+        showSnackbar('Error stopping forwarder', 'error');
       }
     }
   };
@@ -128,7 +128,8 @@ const ClientCard: React.FC<{
           position: 'relative',
           '&:hover': {
             boxShadow: 4,
-          }
+          },
+          background: '#c0b0ffff',
         }}
       >
         {/* Front Side - Info Card */}

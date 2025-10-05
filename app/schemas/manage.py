@@ -28,4 +28,4 @@ class ManageConnectData(BaseSchema):
 
 
 class ManageConnectResponse(BaseSchema):
-    job_id: str
+    forwarder_id: str

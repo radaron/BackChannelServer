@@ -2,9 +2,8 @@ import asyncio
 from pathlib import Path
 from typing import AsyncGenerator
 
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
 
 from app.utils.logger import logger
 
@@ -19,12 +18,12 @@ engine = create_async_engine(
     pool_pre_ping=True,
 )
 
-AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
 
 Base = declarative_base()
 
 
-async def init_db(retries: int = 5, delay: int = 5):
+async def init_db(retries: int = 5, delay: int = 5) -> None:
     logger.info("Initializing database...")
     for attempt in range(retries):
         try:

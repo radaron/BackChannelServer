@@ -19,6 +19,7 @@ bcrypt = "==3.2.2"
 sqlalchemy = "^2.0.43"
 aiosqlite = "^0.21.0"
 greenlet = "^3.2.4"
+jinja2 = "^3.1.6"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.3"
@@ -27,6 +28,8 @@ black = "^23.11.0"
 isort = "^5.12.0"
 flake8 = "^6.1.0"
 mypy = "^1.7.1"
+types-passlib = "^1.7.7.20250602"
+pylint = "^3.3.8"
 
 [build-system]
 requires = ["poetry-core"]
@@ -45,3 +48,13 @@ python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
+
+[tool.pylint]
+max-line-length = 88
+disable = [
+    "missing-class-docstring",
+    "missing-module-docstring",
+    "missing-function-docstring",
+    "too-few-public-methods",
+    "unused-argument",
+]

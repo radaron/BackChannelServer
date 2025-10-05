@@ -1,3 +1,4 @@
+import base64
 import getpass
 
 from passlib.context import CryptContext
@@ -11,4 +12,4 @@ def hash_password(passw: str) -> str:
 
 if __name__ == "__main__":
     password = getpass.getpass("Enter password to hash: ")
-    print(hash_password(password))
+    print(base64.b64encode(hash_password(password).encode()).decode())
