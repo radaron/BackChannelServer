@@ -26,6 +26,16 @@ run:
 up: build-frontend
 	docker compose up --build
 
+reqs-fe-ci:
+	cd frontend && pnpm install
+
+build-frontend-ci:
+	cd frontend && pnpm build
+	rm -rf app/assets/*
+	rm -f app/templates/index.html
+	cp -r frontend/dist/assets/* app/assets/
+	cp frontend/dist/index.html app/templates/
+
 reqs-fe:
 	export NVM_DIR="$$HOME/.nvm" && \
 	[ -s "$$NVM_DIR/nvm.sh" ] && . "$$NVM_DIR/nvm.sh" && \
