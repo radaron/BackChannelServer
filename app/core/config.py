@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     allowed_origins: str
 
     port_range_start: int = 20000
-    port_range_end: int = 30000
+    port_range_end: int = 20100
     local_address: str = "0.0.0.0"
 
     custom_messages: str = (
@@ -22,4 +22,4 @@ class Settings(BaseSettings):
         return self.custom_messages.split(",")
 
 
-settings = Settings()
+settings = Settings() # type: ignore[call-arg]
