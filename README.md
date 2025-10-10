@@ -1,207 +1,176 @@
 # BackChannel Server
 
-A FastAPI application with JWT authentication, SQLAlchemy ORM, and Docker support.
+BackChannel is a web application what provides centralized remote control for connected clients, and monitors their status in real-time.
 
-## Features
+### Screenshots
 
-- 🚀 FastAPI web framework
-- 🔐 Cookie-based authentication with master password
-- 🍪 Secure session management
-- 📦 Poetry dependency management
-- 🐳 Docker containerization
-- 📊 API documentation with Swagger UI
+![BackChannel Server Interface](doc/images/Screenshot%202025-10-10%20at%2016-17-09%20BackChannel%20Server.png)
 
-## Project Structure
+![BackChannel Dashboard](doc/images/Screenshot%202025-10-10%20at%2016-18-26%20BackChannel%20Server.png)
+
+### Architecture
+```mermaid
+architecture-beta
+    group server[Server]
+    group client[Client]
+    group backlink_server[BackLink] in server
+
+    service laptop(server)[Laptop]
+    service http_port(server)[http port] in server
+    service forwarding_port1(server)[forwarding port] in server
+    service forwarding_port2(server)[forwarding port] in server
+    service web_app(server)[WebApp] in backlink_server
+    service forwarder(server)[Forwarder] in backlink_server
+    service blacklink_client(server)[BlackLink] in client
+    service ssh_port(server)[SSH port] in client
+
+    laptop:R --> L:http_port
+    laptop:B --> L:forwarding_port1
+    http_port:R --> L:web_app
+    forwarding_port1:R --> L:forwarder
+    forwarder:R <--> L:forwarding_port2
+    forwarding_port2:R <--> L:blacklink_client
+    blacklink_client:R <--> L:ssh_port
 
 ```
-BackChannelServer/
-├── app/
-│   ├── core/
-│   │   ├── __init__.py
-│   │   ├── config.py          # App configuration
-│   │   ├── database.py        # Database setup
-│   │   └── security.py        # JWT & password utilities
-│   ├── models/
-│   │   ├── __init__.py
-│   │   └── user.py           # SQLAlchemy models
-│   ├── routers/
-│   │   ├── __init__.py
-│   │   ├── auth.py           # Authentication endpoints
-│   │   └── client.py         # Client endpoints
-│   ├── schemas/
-│   │   ├── __init__.py
-│   │   └── user.py           # Pydantic schemas
-│   ├── __init__.py
-│   └── main.py               # FastAPI app
-├── Dockerfile
-├── .dockerignore
-├── .gitignore
-└── pyproject.toml
+
+
+Sequence of monitoring:
+```mermaid
+sequenceDiagram
+    actor User
+    participant Server
+    participant Client
+    loop 30 sec
+        Client->>Server: Get order
+        activate Server
+        Server-->>Client: Return empty
+        deactivate Server
+        Client->>Server: Put metrics
+    end
+    User->>Server: Get all client data
+    activate Server
+    Server-->>User: return
+    deactivate Server
 ```
 
-## Quick Start
 
-### Using Poetry (Recommended)
+Sequence of connecting:
+```mermaid
+sequenceDiagram
+    actor User
+    participant Server
+    participant Client
+    Client->>Server: Get order
+    activate Server
+    Server-->>Client: Return empty
+    Client->>Server: Put metrics
+    deactivate Server
+    User->>Server: Initiate connection
+    activate Server
+    Client->>Server: Get order
+    activate Server
+    Server-->>Client: Return opened port
+    deactivate Server
+    Client->>Server: Connect to opened port
+    Server-->>User: Return opened port
+    User<<->>Client: Two way connection
+    deactivate Server
+```
 
-1. **Install dependencies:**
-   ```bash
-   poetry install
-   ```
+## Getting started
 
-2. **Run the application:**
-   ```bash
-   poetry run python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-   ```
+### Generate Secret Key
 
-3. **Access the API:**
-   - API Documentation: http://localhost:8000/docs
-   - ReDoc: http://localhost:8000/redoc
+Pull the latest docker image:
 
-### Using Docker
-
-1. **Build the image:**
-   ```bash
-   docker build -t backchannel-server .
-   ```
-
-2. **Run the container:**
-   ```bash
-   docker run -p 8000:8000 backchannel-server
-   ```
-
-## Authentication
-
-The application uses a simple master password for authentication:
-- **Master Password:** `admin123` (configurable via environment)
-
-### Password Hashing
-
-For enhanced security, you can use hashed passwords instead of plain text:
-
-#### Generate Password Hash
-
-**Option 1: Using Poetry scripts (recommended)**
 ```bash
-# Hash any password
-poetry run hash-password admin123
-
-# Hash the current master password from config
-poetry run hash-master-password
+docker pull ghcr.io/radaron/backchannel:latest
 ```
 
-**Option 1b: Using Make commands**
+Or use docker-compose:
+
+```yaml
+version: '3.8'
+services:
+  backchannel:
+    image: ghcr.io/radaron/backchannel:latest
+    ports:
+      - "8000:8000"
+      - 20000-20100:20000-20100
+    environment:
+      - SECRET_KEY=your-secret-key
+      - MASTER_PASSWORD_HASH=your-master-password-hash
+      - ALLOWED_ORIGINS=*
+    volumes:
+      - ./data:/app/data
+```
+
+
+
+For production deployment, you need to generate a secure secret key:
+
+```bash
+make generate-secret
+```
+
+This will generate a UUID-based secret key that you should set in your environment.
+### Generate Password Hash
+
 ```bash
 make hash-password
 ```
-
-#### Using Hashed Passwords
-
-Set the hashed password in your `.env` file:
-```bash
-MASTER_PASSWORD_HASH=$2b$12$example.hash.here
-# When MASTER_PASSWORD_HASH is set, MASTER_PASSWORD is ignored for authentication
-```
-
-### API Endpoints
-
-#### Authentication (`/api/v1/auth`)
-
-- `POST /api/v1/auth/login` - Login with master password (sets session cookie)
-- `POST /api/v1/auth/logout` - Logout and clear session cookie
-- `GET /api/v1/auth/me` - Get current session info
-- `GET /api/v1/auth/status` - Check authentication status
-- `POST /api/v1/auth/hash-password` - Hash a password (requires authentication)
-
-#### Client (`/api/v1/client`)
-
-- `GET /api/v1/client/profile` - Get session profile
-- `GET /api/v1/client/dashboard` - Get dashboard data
-- `GET /api/v1/client/stats` - Get session statistics
-- `GET /api/v1/client/protected` - Example protected endpoint
-
-### Example Usage
-
-1. **Login with master password:**
-   ```bash
-   curl -c cookies.txt -X POST "http://localhost:8000/api/v1/auth/login" \
-        -H "Content-Type: application/json" \
-        -d '{"password": "admin123"}'
-   ```
-
-2. **Access protected endpoint:**
-   ```bash
-   curl -b cookies.txt -X GET "http://localhost:8000/api/v1/client/profile"
-   ```
-
-3. **Check authentication status:**
-   ```bash
-   curl -b cookies.txt -X GET "http://localhost:8000/api/v1/auth/status"
-   ```
-
-4. **Logout:**
-   ```bash
-   curl -b cookies.txt -c cookies.txt -X POST "http://localhost:8000/api/v1/auth/logout"
-   ```
-
-## Configuration
-
-Configuration can be customized via environment variables or the `.env` file:
-
-- `SECRET_KEY` - Session secret key (change in production!)
-- `MASTER_PASSWORD` - Master password for authentication (default: admin123)
-- `MASTER_PASSWORD_HASH` - Hashed master password (preferred over plain text)
-- `SESSION_EXPIRE_MINUTES` - Session expiration time (default: 60 minutes)
-- `COOKIE_NAME` - Session cookie name (default: backchannel_session)
+The script will prompt you to enter a password and return a base64-encoded bcrypt hash. Set this in your environment.
 
 ## Development
 
-### Install development dependencies:
-```bash
-poetry install --with dev
-```
+### Prerequisites
 
-### Code formatting:
-```bash
-poetry run black app/
-poetry run isort app/
-```
+- Python 3.12+
+- [uv](https://docs.astral.sh/uv/) package manager
+- Node.js 18+ (for frontend development)
+- Docker or OCI-compatible container runtime
 
-### Type checking:
-```bash
-poetry run mypy app/
-```
+### Development Setup
 
-### Available Make Commands:
-```bash
-make install           # Install dependencies
-make run              # Run FastAPI server in development mode
-make hash-password PASSWORD=yourpass  # Hash any password
-make hash-master      # Hash current master password from config
-make format           # Format code with isort and black
-make up               # Run with Docker Compose
-```
+1. **Install dependencies:**
+   ```bash
+   make install
+   ```
 
-### Run tests:
-```bash
-poetry run pytest
-```
+2. **Generate security credentials:**
+   ```bash
+   # Generate a secret key
+   make generate-secret
 
-## Docker Commands
+   # Generate password hash
+   make hash-password
+   ```
 
-```bash
-# Build image
-docker build -t backchannel-server .
+3. **Set up environment:**
+   ```bash
+   cp backchannel.env.example backchannel.env
+   # Edit backchannel.env with your generated credentials
+   ```
 
-# Run container
-docker run -p 8000:8000 backchannel-server
+4. **Build frontend and run the application:**
+   ```bash
+   make up
+   ```
 
-# Run with environment variables
-docker run -p 8000:8000 -e SECRET_KEY=your-secret-key -e MASTER_PASSWORD=your-password backchannel-server
+5. **Access the application:**
+   - http://localhost:8000
 
-# Run in background
-docker run -d -p 8000:8000 --name backchannel backchannel-server
-```
+## Configuration
 
-## License
+Configuration can be customized via environment variables or the `backchannel.env` file:
 
-This project is open source and available under the [MIT License](LICENSE).
+- `SECRET_KEY` - Session secret key (required for production)
+- `MASTER_PASSWORD_HASH` - Hashed master password (preferred over plain text)
+- `SESSION_EXPIRE_MINUTES` - Session expiration time (default: 60 minutes)
+- `COOKIE_NAME` - Session cookie name (default: backchannel_session)
+- `ALLOWED_ORIGINS` - CORS allowed origins (default: "*")
+- `PORT_RANGE_START` - Start of port range for dynamic forwarding (default: 20000)
+- `PORT_RANGE_END` - End of port range for dynamic forwarding (default: 20100)
+- `LOCAL_ADDRESS` - Local address to bind (default: "0.0.0.0")
+- `CUSTOM_MESSAGES` - Custom connection instructions (default provided)

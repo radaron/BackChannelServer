@@ -74,7 +74,6 @@ const Manage: React.FC = () => {
     try {
       await manageService.deleteData(name);
       showSnackbar(`Client '${name}' deleted successfully`, 'success');
-      // Refresh the client list
       fetchClients();
     } catch (error) {
       if (error instanceof ApiError) {
@@ -88,12 +87,10 @@ const Manage: React.FC = () => {
   useEffect(() => {
     fetchClients();
 
-    // Set up polling interval (every 5 seconds)
     const intervalId = setInterval(() => {
       fetchClients();
     }, 5000);
 
-    // Cleanup interval on unmount
     return () => {
       clearInterval(intervalId);
     };

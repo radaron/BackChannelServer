@@ -129,7 +129,7 @@ const ClientCard: React.FC<{
           '&:hover': {
             boxShadow: 4,
           },
-          background: '#c0b0ffff',
+          background: '#232323ff',
         }}
       >
         {/* Front Side - Info Card */}

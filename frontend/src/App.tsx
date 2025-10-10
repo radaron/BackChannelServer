@@ -7,12 +7,16 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 // Create a custom theme with mobile-first responsive design
 const theme = createTheme({
   palette: {
-    mode: 'light',
+    mode: 'dark',
     primary: {
       main: '#1976d2',
     },
     secondary: {
       main: '#dc004e',
+    },
+    background: {
+      default: '#121212',
+      paper: '#1e1e1e',
     },
   },
   breakpoints: {

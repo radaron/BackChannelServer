@@ -1,4 +1,4 @@
-install:
+install: reqs-fe
 	uv sync --dev
 
 format:
