@@ -3,7 +3,7 @@ from typing import AsyncGenerator
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -45,7 +45,11 @@ app.mount("/assets", StaticFiles(directory="app/assets"), name="assets")
 
 
 @app.get("/")
-@app.get("/manage")
+async def root(request: Request) -> Response:
+    return RedirectResponse(url="/manage")
+
+
 @app.get("/login")
-async def serve_frontend(request: Request) -> Response:
+@app.get("/manage")
+async def pages(request: Request) -> Response:
     return templates.TemplateResponse("index.html", {"request": request})
