@@ -80,8 +80,6 @@ sequenceDiagram
 
 ## Getting started
 
-### Generate Secret Key
-
 Pull the latest docker image:
 
 ```bash
@@ -106,15 +104,13 @@ services:
       - ./data:/app/data
 ```
 
-
-
-For production deployment, you need to generate a secure secret key:
+### Generate Secret Key
 
 ```bash
 make generate-secret
 ```
-
 This will generate a UUID-based secret key that you should set in your environment.
+
 ### Generate Password Hash
 
 ```bash
