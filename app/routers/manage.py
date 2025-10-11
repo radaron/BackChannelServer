@@ -28,7 +28,7 @@ async def get_all_orders(
 
     orders_result = await db_session.execute(select(Order).order_by(Order.name))
     orders = orders_result.scalars().all()
-    for order in orders:
+    for order in sorted(orders, key=lambda o: o.name):
         resp_item = ManageDataResponseItem(
             name=order.name,
             polled_time=float(order.polled_time)

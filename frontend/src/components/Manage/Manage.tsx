@@ -130,7 +130,7 @@ const Manage: React.FC = () => {
                 fontSize: { xs: '1.25rem', sm: '1.75rem', md: '2.125rem' },
               }}
             >
-              BackChannel
+              Back Channel
             </Typography>
           </Box>
 
