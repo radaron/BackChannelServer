@@ -1,6 +1,6 @@
 [project]
 name = "backchannelserver"
-version = "0.3.2"
+version = "0.3.3"
 description = "BackChannel Server"
 readme = "README.md"
 requires-python = ">=3.12"

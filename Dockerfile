@@ -7,7 +7,7 @@ WORKDIR /service
 COPY pyproject.toml uv.lock* ./
 COPY app /service/app/
 
-RUN uv sync --no-dev
+RUN uv sync --no-dev --locked
 
 FROM python:3.12-slim
 
