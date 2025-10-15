@@ -21,5 +21,8 @@ class Settings(BaseSettings):
     def get_custom_messages(self) -> list[str]:
         return self.custom_messages.split(",")
 
+    def get_allowed_origins(self) -> list[str]:
+        return [origin.strip() for origin in self.allowed_origins.split(",")]
+
 
 settings = Settings() # type: ignore[call-arg]

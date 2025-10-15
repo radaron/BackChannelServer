@@ -9,10 +9,15 @@ interface TerminalProps {
 }
 
 const TerminalCard: React.FC<TerminalProps> = ({ clientName, messages, onClose }) => {
-  const terminalEndRef = useRef<HTMLDivElement>(null);
+  const terminalContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    terminalEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (terminalContainerRef.current) {
+      terminalContainerRef.current.scrollTo({
+        top: terminalContainerRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
+    }
   }, [messages]);
 
   return (
@@ -50,6 +55,7 @@ const TerminalCard: React.FC<TerminalProps> = ({ clientName, messages, onClose }
 
       {/* Terminal Content */}
       <Box
+        ref={terminalContainerRef}
         sx={{
           flexGrow: 1,
           bgcolor: '#1e1e1e',
@@ -87,7 +93,6 @@ const TerminalCard: React.FC<TerminalProps> = ({ clientName, messages, onClose }
             {message}
           </Box>
         ))}
-        <div ref={terminalEndRef} />
       </Box>
     </>
   );
