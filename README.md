@@ -163,7 +163,7 @@ Configuration can be customized via environment variables or the `backchannel.en
 
 - `SECRET_KEY` - Session secret key (required for production)
 - `MASTER_PASSWORD_HASH` - Hashed master password (preferred over plain text)
-- `SESSION_EXPIRE_MINUTES` - Session expiration time (default: 60 minutes)
+- `SESSION_EXPIRE_DAYS` - Session expiration time (default: 1 day)
 - `COOKIE_NAME` - Session cookie name (default: backchannel_session)
 - `ALLOWED_ORIGINS` - CORS allowed origins (default: "*")
 - `PORT_RANGE_START` - Start of port range for dynamic forwarding (default: 20000)

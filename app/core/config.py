@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     secret_key: str
     master_password_hash: str
-    session_expire_minutes: int = 60
+    session_expire_days: int = 30
 
     cookie_name: str = "backchannel_session"
     allowed_origins: str

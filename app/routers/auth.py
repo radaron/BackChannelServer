@@ -20,13 +20,12 @@ def login(login_data: LoginRequest, response: Response) -> LoginResponse:
     # Create access token using LoginManager
     access_token = create_access_token(user.username)
 
-    # Set the token as a cookie
     response.set_cookie(
         key=settings.cookie_name,
         value=access_token,
-        max_age=settings.session_expire_minutes * 60,
+        max_age=settings.session_expire_days * 24 * 60 * 60,
         path="/",
-        secure=False,  # Set to True in production with HTTPS
+        secure=True,
         httponly=True,
         samesite="lax",
     )

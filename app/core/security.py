@@ -53,7 +53,7 @@ def authenticate_user(password: str) -> Optional[User]:
 def create_access_token(username: str) -> str:
     return manager.create_access_token(
         data={"sub": username},
-        expires=timedelta(minutes=settings.session_expire_minutes),
+        expires=timedelta(days=settings.session_expire_days),
     )
 
 
